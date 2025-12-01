@@ -1,8 +1,13 @@
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.function.Function;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 
@@ -21,6 +26,11 @@ public class App {
     
     static ABB<Integer, Produto> produtosCadastradosPorId;
     
+    private static AVL<Integer, fornecedor> arvoreFornecedores;
+    private static TabelaHash<Produto, List<fornecedor>> fornecedoresPorProduto;
+    private static List<Produto> catalogoProdutos = new ArrayList<>();
+
+
     static void limparTela() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
@@ -38,6 +48,111 @@ public class App {
         System.out.println("=============================");
     }
    
+    public static <K> AVL<K, fornecedor> LerFornecedores(String nomeArquivoDados, Function<fornecedor, K> extratorDeChave) {
+        AVL<K, fornecedor> arvore = new AVL<> ();
+    }
+
+    try (BufferedReader br = new BufferedReader(new FileReader(nomeArquivoDados))) {
+        String linha = br.readLine();
+        if (linha == null) {
+            throw new IOException("Arquivo vazio: " + nomeArquivoDados);
+        }
+
+        int quantidade = Integer.parseInt(linha.trim());
+        
+        for (int i = 0; i < quantidade; i++) {
+            String nomeFornecedor = br.readLine();
+
+            if (nomeFornecedor == null || nomeFornecedor.trim().isEmpty()) {
+                break;
+            }
+
+            fornecedor fornecedor = new fornecedor(nomeFornecedor.trim());
+
+            List<Produto> selecionados = selecionarProdutosAleatorios(catalogoProdutos, 6);
+
+            for (Produto p : selecionados) {
+                fornecedor.adicionarProduto(p);
+                associarProdutoAFornecedor(p, fornecedor);
+            }
+            K chave = extratorDeChave.apply(fornecedor);
+
+            arvore.inserir(chave, fornecedor);
+        }
+    } catch (IOException e) {
+        System.err.println("Problema ao ler o arquivo de fornecedores: " + e.getMessage());
+    } return arvore; }
+
+    public static void associarProdutoAFornecedor(Produto produto, fornecedor fornecedor) {
+        List<fornecedor> lista = fornecedoresPorProduto.obter(produto);
+
+        if (lista == null) {
+            lista = new ArrayList<>();
+            fornecedoresPorProduto.inserir(produto, lista);
+        }
+
+        if (!lista.contains(fornecedor)) {
+            lista.add(fornecedor);
+        }
+    }
+
+    public static String relatorioDeFornecedor(int documento) {
+        if (arvoreFornecedores == null) {
+            return "Árvore de fornecedores ainda não foi inicializada.";
+        }
+        fornecedor fornecedor = arvoreFornecedores.buscar(documento);
+
+        if (fornecedor == null) {
+            return "Fornecedor com documento " + documento + "não encontrado.";
+        }
+        return fornecedor.toString();
+    }
+
+    public static void fornecedoresDoProduto(int codigoProduto, String nomeArquivoSaida) {
+        if (fornecedoresDoProduto == null) {
+            System.err.println("Tabela de fornecedores por produto ainda não foi inicializada.");
+            return;
+        }
+
+        Produto escolhido = buscarProdutoPorCodigo(codigoProduto);
+
+        if (escolhido == null) {
+            System.err.println("Produto com código " + codigoProduto + " não encontrado.");
+            return;
+        }
+
+        List<fornecedor> Lista = fornecedoresPorProduto.obter(escolhido);
+
+        if (lista == null || lista.isEmpty()) {
+            System.err.println("Não há fornecedores cadastrados para o produto " + codigoProduto + ".");
+            return;
+        }
+
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(nomeArquivoSaida))) {
+            bw.write("Relatório de fornecedores do produto " + escolhido);
+            bw.newLine();
+            bw.newLine();
+
+            for (fornecedor f : lista) {
+                bw.write (f.toString());
+                bw.newLine();
+            }
+            System.out.println("Relatório gerado em: " + nomeArquivoSaida);
+
+        }   catch (IOException e) {
+            System.err.println("Erro ao escrever arquivo de relatório " + e.getMessage());
+        }
+    }
+
+    private static Produto buscaProdutoPorCodigo (int codigo) {
+        for (Produto p : catalogoProdutos) {
+            if (p.getCodigo() == codigo) {
+                return p;
+            }
+        }
+        return null;
+    }
+
     static <T extends Number> T lerOpcao(String mensagem, Class<T> classe) {
         
     	T valor;
@@ -75,7 +190,7 @@ public class App {
      * @param nomeArquivoDados Nome do arquivo de dados a ser aberto.
      * @return Uma árvore com os produtos carregados, ou vazia em caso de problemas de leitura.
      */
-    static <K> ABB<K, Produto> lerProdutos(String nomeArquivoDados, Function<Produto, K> extratorDeChave) {
+    static <K> ABB<K, Produto>Produtos(String nomeArquivoDados, Function<Produto, K> extratorDeChave) {
     	
     	Scanner arquivo = null;
     	int numProdutos;
@@ -181,6 +296,9 @@ public class App {
             pausa();
         }while(opcao != 0);       
 
-        teclado.close();    
+        teclado.close();   
+        
+        arvoreFornecedores = new AVL<>();
+        fornecedoresPorProduto = new TabelaHash<>();
     }
 }
